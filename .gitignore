@@ -1,0 +1,15 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+_deps/
+*.pending
+UnityBake/Library/
+UnityBake/Temp/
+UnityBake/Logs/
+UnityBake/Obj/
+UnityBake/Build/
+.cursor/
+.cursorrules
+*.log

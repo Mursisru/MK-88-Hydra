@@ -1,0 +1,87 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Hydra</RootNamespace>
+    <AssemblyName>MK88Hydra</AssemblyName>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningLevel>5</WarningLevel>
+    <Version>1.1.0</Version>
+    <AssemblyVersion>1.1.0.0</AssemblyVersion>
+    <FileVersion>1.1.0.0</FileVersion>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Ship .nobp as loose file next to DLL (Blueprinter + NobpContent). Do not embed — double-load breaks AssetBundle. -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="0Harmony">
+      <HintPath>$(NuclearOptionRoot)\BepInEx\core\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="BepInEx">
+      <HintPath>$(NuclearOptionRoot)\BepInEx\core\BepInEx.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Blueprinter">
+      <HintPath>$(NuclearOptionRoot)\BepInEx\plugins\Blueprinter.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(NuclearOptionRoot)\NuclearOption_Data\Managed\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Mirage">
+      <HintPath>$(NuclearOptionRoot)\NuclearOption_Data\Managed\Mirage.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(NuclearOptionRoot)\NuclearOption_Data\Managed\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(NuclearOptionRoot)\NuclearOption_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>$(NuclearOptionRoot)\NuclearOption_Data\Managed\UnityEngine.PhysicsModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AssetBundleModule">
+      <HintPath>$(NuclearOptionRoot)\NuclearOption_Data\Managed\UnityEngine.AssetBundleModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ImageConversionModule">
+      <HintPath>$(NuclearOptionRoot)\NuclearOption_Data\Managed\UnityEngine.ImageConversionModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ParticleSystemModule">
+      <HintPath>$(NuclearOptionRoot)\NuclearOption_Data\Managed\UnityEngine.ParticleSystemModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>$(NuclearOptionRoot)\NuclearOption_Data\Managed\UnityEngine.AudioModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="DeployToGame" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <MakeDir Directories="$(ModDeployDir)" />
+    <Copy SourceFiles="$(OutputPath)MK88Hydra.dll" DestinationFolder="$(ModDeployDir)" SkipUnchangedFiles="false" />
+    <ItemGroup>
+      <NobpFiles Include="$(MSBuildProjectDirectory)\Resources\MK88Hydra.nobp" Condition="Exists('$(MSBuildProjectDirectory)\Resources\MK88Hydra.nobp')" />
+      <NobpFiles Include="$(MSBuildProjectDirectory)\..\UnityBake\Build\MK88Hydra.nobp" Condition="Exists('$(MSBuildProjectDirectory)\..\UnityBake\Build\MK88Hydra.nobp')" />
+      <TexFiles Include="$(MSBuildProjectDirectory)\..\UnityBake\Assets\MissilePack\KozuchTorpedoTexture.png" Condition="Exists('$(MSBuildProjectDirectory)\..\UnityBake\Assets\MissilePack\KozuchTorpedoTexture.png')" />
+      <PartTexFiles Include="$(MSBuildProjectDirectory)\..\UnityBake\Assets\MissilePack\Textures\*.*" Condition="Exists('$(MSBuildProjectDirectory)\..\UnityBake\Assets\MissilePack\Textures')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(NobpFiles)" DestinationFolder="$(ModDeployDir)" SkipUnchangedFiles="false" Condition="'@(NobpFiles)' != ''" />
+    <MakeDir Directories="$(ModDeployDir)\Textures" Condition="'@(PartTexFiles)' != ''" />
+    <Copy SourceFiles="@(PartTexFiles)" DestinationFolder="$(ModDeployDir)\Textures" SkipUnchangedFiles="false" Condition="'@(PartTexFiles)' != ''" />
+    <Copy SourceFiles="@(TexFiles)" DestinationFolder="$(ModDeployDir)" SkipUnchangedFiles="false" Condition="'@(TexFiles)' != ''" />
+  </Target>
+</Project>
