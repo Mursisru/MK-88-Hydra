@@ -148,9 +148,13 @@ namespace Hydra.Patches
                 !string.Equals(__instance.jsonKey, TorpedoConstants.MountJsonKeyDouble, System.StringComparison.Ordinal))
                 return;
 
-            WeaponInfo? info = __instance.info;
+            WeaponInfo? info = TorpedoBootstrap.TorpedoInfo ?? __instance.info;
             if (info == null)
                 return;
+
+            // Force shared SO so multi-pylon Hydras stack into one WeaponStation.
+            __instance.info = info;
+            __instance.sortWeapons = true;
 
             int ammo = __instance.ammo > 0 ? __instance.ammo : 1;
             info.weaponName = TorpedoConstants.WeaponInfoName;
@@ -161,6 +165,10 @@ namespace Hydra.Patches
             info.massPerRound = TorpedoConstants.LaunchMassKg;
             info.blastDamage = TorpedoConstants.BlastYieldKg;
             info.costPerRound = TorpedoConstants.Cost;
+            info.bomb = false;
+            info.glideBomb = true;
+            info.missile = false;
+            Mk54AiEmployment.ApplyProfile(info);
             if (TorpedoBootstrap.TorpedoDefinition?.unitPrefab != null)
                 info.weaponPrefab = TorpedoBootstrap.TorpedoDefinition.unitPrefab;
 

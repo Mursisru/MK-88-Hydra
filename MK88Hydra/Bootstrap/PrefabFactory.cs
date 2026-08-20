@@ -94,31 +94,51 @@ namespace Hydra.Bootstrap
             }
 
             EnableGameplayBehaviours(instance, enableMissile: false, stripJunk: true);
-            EnsureVisualRenderers(instance);
 
             if (internalBay)
-                RefitVisualForInternalBay(instance);
+            {
+                // Internal bay: never show mesh (fins poke through Darkreach/Alkyon skin).
+                HideMountedBayVisuals(instance);
+            }
+            else
+            {
+                EnsureVisualRenderers(instance);
+            }
 
             LogRenderers(internalBay ? "mount-bay" : "mount-pylon", instance);
         }
 
-        /// <summary>
-        /// Prefab is stamped for external PlaceOfRocketLock. Bay hardpoints re-fit full-model center at spawn.
-        /// </summary>
-        internal static void RefitVisualForInternalBay(GameObject host)
+        /// <summary>Hide TorpedoVisual + stock meshes inside closed weapon bays.</summary>
+        internal static void HideMountedBayVisuals(GameObject host)
         {
-            Transform? vis = FindTorpedoVisual(host.transform);
-            if (vis == null)
-            {
-                HydraPlugin.ModLog?.LogWarning("RefitVisualForInternalBay: no TorpedoVisual");
+            if (host == null)
                 return;
+
+            HideStockRenderers(host);
+
+            Transform[] visuals = FindAllTorpedoVisuals(host.transform);
+            for (int i = 0; i < visuals.Length; i++)
+            {
+                Transform vis = visuals[i];
+                if (vis == null)
+                    continue;
+                foreach (Renderer r in vis.GetComponentsInChildren<Renderer>(true))
+                {
+                    if (r != null)
+                        r.enabled = false;
+                }
+                vis.gameObject.SetActive(false);
             }
 
-            VisualFit.Apply(vis, VisualMountSnap.FullModelCenter);
-            VisualMaterials.NormalizeAndPaint(vis.gameObject);
             HydraPlugin.ModLog?.LogInfo(
-                $"RefitVisualForInternalBay localPos={vis.localPosition}");
+                $"HideMountedBayVisuals '{host.name}' visuals={visuals.Length}");
         }
+
+        /// <summary>
+        /// Legacy bay refit — kept for callers; bay mounts now hide instead of re-centering.
+        /// </summary>
+        internal static void RefitVisualForInternalBay(GameObject host) =>
+            HideMountedBayVisuals(host);
 
         /// <summary>Wake a dropped/flying instance at the spawn pose already set by Spawner.</summary>
         internal static void ActivateFlyingInstance(GameObject instance)
@@ -205,18 +225,23 @@ namespace Hydra.Bootstrap
 
         internal static Transform? FindTorpedoVisual(Transform root)
         {
+            Transform[] all = FindAllTorpedoVisuals(root);
+            return all.Length > 0 ? all[0] : null;
+        }
+
+        internal static Transform[] FindAllTorpedoVisuals(Transform root)
+        {
             if (root == null)
-                return null;
-            Transform direct = root.Find("TorpedoVisual");
-            if (direct != null)
-                return direct;
+                return System.Array.Empty<Transform>();
+
+            var list = new System.Collections.Generic.List<Transform>(4);
             Transform[] all = root.GetComponentsInChildren<Transform>(true);
             for (int i = 0; i < all.Length; i++)
             {
                 if (all[i] != null && all[i].name == "TorpedoVisual")
-                    return all[i];
+                    list.Add(all[i]);
             }
-            return null;
+            return list.ToArray();
         }
 
         /// <summary>
@@ -236,18 +261,22 @@ namespace Hydra.Bootstrap
 
         private static void EnsureVisualRenderers(GameObject root)
         {
-            Transform? vis = FindTorpedoVisual(root.transform);
-            if (vis == null)
-                return;
-            vis.gameObject.SetActive(true);
-            foreach (Renderer r in vis.GetComponentsInChildren<Renderer>(true))
+            Transform[] visuals = FindAllTorpedoVisuals(root.transform);
+            for (int i = 0; i < visuals.Length; i++)
             {
-                if (r != null)
-                    r.enabled = true;
+                Transform vis = visuals[i];
+                if (vis == null)
+                    continue;
+                vis.gameObject.SetActive(true);
+                foreach (Renderer r in vis.GetComponentsInChildren<Renderer>(true))
+                {
+                    if (r != null)
+                        r.enabled = true;
+                }
+                if (ApproximatelyOne(vis.localScale))
+                    VisualFit.Apply(vis);
+                VisualMaterials.NormalizeAndPaint(vis.gameObject);
             }
-            if (ApproximatelyOne(vis.localScale))
-                VisualFit.Apply(vis);
-            VisualMaterials.NormalizeAndPaint(vis.gameObject);
         }
 
         private static Transform? FindNamedVisual(Transform root, string name)
@@ -296,33 +325,11 @@ namespace Hydra.Bootstrap
                 return;
             }
 
-            Transform parent = ResolveVisualParent(host);
-            GameObject vis = UnityEngine.Object.Instantiate(visualPrefab, parent, false);
-            vis.name = "TorpedoVisual";
-            vis.hideFlags = HideFlags.None;
-            vis.SetActive(true);
-
-            VisualMaterials.StripSceneJunk(vis);
-            VisualMaterials.MatchHostDrawState(vis, host);
-
-            int visOn = 0;
-            foreach (Renderer r in vis.GetComponentsInChildren<Renderer>(true))
-            {
-                if (r == null)
-                    continue;
-                r.enabled = true;
-                visOn++;
-            }
-
-            if (visOn > 0)
+            int stamped = StampVisualOnAllWeapons(host, visualPrefab);
+            if (stamped > 0)
                 HideStockRenderers(host);
             else
-                HydraPlugin.ModLog?.LogWarning("StampVisual: visual has 0 renderers, keeping shell mesh.");
-
-            VisualFit.Apply(vis.transform);
-            VisualMaterials.NormalizeAndPaint(vis);
-            HydraPlugin.ModLog?.LogInfo(
-                $"StampVisual host='{host.name}' parent='{parent.name}' visLocal={vis.transform.localPosition}");
+                HydraPlugin.ModLog?.LogWarning("StampVisual: visual has 0 parents, keeping shell mesh.");
 
             ResetPrefabTransform(host);
             host.SetActive(false);
@@ -336,8 +343,39 @@ namespace Hydra.Bootstrap
                 return;
 
             DestroyExistingVisuals(host);
+            int stamped = StampVisualOnAllWeapons(host, visualPrefab);
+            if (stamped > 0)
+                HideStockRenderers(host);
+        }
 
-            Transform parent = ResolveVisualParent(host);
+        /// <summary>
+        /// Dual mounts: stamp TorpedoVisual under EVERY MountedMissile.
+        /// Old path stamped only the first → HideStockRenderers hid the second rail mesh.
+        /// </summary>
+        private static int StampVisualOnAllWeapons(GameObject host, GameObject visualPrefab)
+        {
+            MountedMissile[] mms = host.GetComponentsInChildren<MountedMissile>(true);
+            int stamped = 0;
+            if (mms.Length > 0)
+            {
+                for (int i = 0; i < mms.Length; i++)
+                {
+                    if (mms[i] == null)
+                        continue;
+                    if (StampOneVisual(mms[i].transform, host, visualPrefab))
+                        stamped++;
+                }
+                return stamped;
+            }
+
+            return StampOneVisual(ResolveVisualParent(host), host, visualPrefab) ? 1 : 0;
+        }
+
+        private static bool StampOneVisual(Transform parent, GameObject host, GameObject visualPrefab)
+        {
+            if (parent == null || visualPrefab == null)
+                return false;
+
             GameObject vis = UnityEngine.Object.Instantiate(visualPrefab, parent, false);
             vis.name = "TorpedoVisual";
             vis.hideFlags = HideFlags.None;
@@ -355,13 +393,17 @@ namespace Hydra.Bootstrap
                 visOn++;
             }
 
-            if (visOn > 0)
-                HideStockRenderers(host);
+            if (visOn == 0)
+            {
+                HydraPlugin.ModLog?.LogWarning($"StampOneVisual: 0 renderers under '{parent.name}'");
+                return false;
+            }
 
             VisualFit.Apply(vis.transform);
             VisualMaterials.NormalizeAndPaint(vis);
             HydraPlugin.ModLog?.LogInfo(
-                $"StampVisualLive host='{host.name}' parent='{parent.name}' renderers={visOn}");
+                $"StampVisual parent='{parent.name}' visLocal={vis.transform.localPosition}");
+            return true;
         }
 
         private static void LogRenderers(string tag, GameObject root)
@@ -552,7 +594,8 @@ namespace Hydra.Bootstrap
             dst.boresight = src.boresight;
             dst.laserGuided = false;
             dst.missile = false;
-            dst.bomb = true;
+            // Glide weapon HUD (MissileUI), not free-fall CCIP.
+            dst.bomb = false;
             dst.glideBomb = true;
             dst.gun = false;
             dst.overHorizon = false;

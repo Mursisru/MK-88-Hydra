@@ -97,6 +97,7 @@ namespace Hydra.Runtime
             Mk54ShellPrep.Prepare(missile);
             Mk54Mass.ApplyLaunch(missile);
             SafeSeparation.Prepare(missile);
+            Mk54Stealth.EnsureAirRadarSignature(missile);
         }
 
         internal static void FinishVisual(Missile missile)

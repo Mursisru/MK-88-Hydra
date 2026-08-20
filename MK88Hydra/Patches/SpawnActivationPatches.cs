@@ -17,6 +17,20 @@ namespace Hydra.Patches
         {
             if (!IsOurs(weaponMount) || weaponMount.prefab == null)
                 return;
+
+            // Keep shared WeaponInfo so multi-pylon loads stack into one station.
+            WeaponInfo? shared = TorpedoBootstrap.TorpedoInfo ?? weaponMount.info;
+            if (shared != null)
+            {
+                weaponMount.info = shared;
+                weaponMount.sortWeapons = true;
+                foreach (MountedMissile mm in weaponMount.prefab.GetComponentsInChildren<MountedMissile>(true))
+                {
+                    if (mm != null)
+                        mm.info = shared;
+                }
+            }
+
             PrefabFactory.FreezeTemplatePhysics(weaponMount.prefab);
             weaponMount.prefab.SetActive(true);
         }
@@ -46,7 +60,8 @@ namespace Hydra.Patches
         private static bool IsOurs(WeaponMount? weaponMount)
         {
             return weaponMount != null &&
-                   string.Equals(weaponMount.jsonKey, TorpedoConstants.MountJsonKey, System.StringComparison.Ordinal);
+                   (string.Equals(weaponMount.jsonKey, TorpedoConstants.MountJsonKey, System.StringComparison.Ordinal) ||
+                    string.Equals(weaponMount.jsonKey, TorpedoConstants.MountJsonKeyDouble, System.StringComparison.Ordinal));
         }
     }
 

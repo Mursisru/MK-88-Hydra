@@ -32,6 +32,7 @@ namespace Hydra.Runtime
             float ringM = TorpedoConstants.RouteEntryStandoffM + TorpedoConstants.RouteEntryRingSlackM;
             float shedY = Datum.LocalSeaY + TorpedoConstants.ShedKozuchAltitudeM;
             bool overWater = TorpedoPhaseRules.OverDropWater(pos);
+            bool clearSwim = locked != null && TorpedoPhaseRules.OverClearSwimWater(pos, shipPos);
 
             Vector3 aim;
             float stabilizeUntil = TorpedoConstants.GlideStabilizeSeconds + 1.5f;
@@ -42,25 +43,36 @@ namespace Hydra.Runtime
                 aim = pos + guidance.LaunchHeading * HoldHeadingRangeM;
                 aim.y = pos.y;
             }
-            else if (!overWater)
+            else if (!overWater || !clearSwim)
             {
-                // Land: ship bearing, hold terrain clearance — glide until coast, no dive to shed.
+                // Land OR water with land on swim path: hold clearance, glide until clear corridor.
                 aim = shipPos;
                 aim.y = LandHoldAimY(pos);
             }
             else
             {
-                // Water: ship-line XZ. Y = pitch profile (ring dive).
+                // Water: ship-line XZ. Y = pitch profile.
+                // Aggressive ring dive ONLY after ringEntry (min-glide elapsed).
+                // dist≤25.8km alone must NOT dive — AI drops inside that band and was
+                // crashing to ~150m before life=5s, then shed+chute same frame.
                 aim = shipPos;
-                if (!ringEntry && distShip > ringM)
+                if (!ringEntry)
                 {
-                    float remainToRing = distShip - TorpedoConstants.RouteEntryStandoffM;
-                    float blend = Mathf.Clamp01(remainToRing / PreRingSlopeHorizonM);
-                    aim.y = Mathf.Lerp(shedY, pos.y, blend);
-                    aim.y = Mathf.Clamp(aim.y, shedY, Mathf.Max(pos.y, shedY));
+                    if (distShip > ringM)
+                    {
+                        float remainToRing = distShip - TorpedoConstants.RouteEntryStandoffM;
+                        float blend = Mathf.Clamp01(remainToRing / PreRingSlopeHorizonM);
+                        aim.y = Mathf.Lerp(shedY, pos.y, blend);
+                        aim.y = Mathf.Clamp(aim.y, shedY, Mathf.Max(pos.y, shedY));
+                    }
+                    else
+                    {
+                        // Inside geometric ring, waiting min-glide: hold cruise alt.
+                        aim.y = Mathf.Max(pos.y, shedY);
+                    }
                 }
                 else if (alt > TorpedoConstants.ShedKozuchAltitudeM + 80f)
-                    aim.y = shedY;
+                    aim.y = Datum.LocalSeaY + TorpedoConstants.ParachuteDeployAltitudeM;
                 else if (alt > TorpedoConstants.ParachuteDeployAltitudeM)
                     aim.y = Datum.LocalSeaY + TorpedoConstants.ParachuteDeployAltitudeM * 0.5f;
                 else

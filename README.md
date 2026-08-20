@@ -1,6 +1,6 @@
 # MK-88 Hydra
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue)](https://github.com/Mursisru)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/Mursisru/MK-88-Hydra)
 [![BepInEx](https://img.shields.io/badge/BepInEx-5-green)](https://docs.bepinex.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -9,11 +9,14 @@ BepInEx plugin that adds the **MK-88 Hydra** air-drop anti-ship torpedo to [Nucl
 > [!IMPORTANT]
 > **Requires [Blueprinter](https://github.com/nikkorap/NOBlueprinter-Releases)** (`com.nikkorap.blueprinter`). Install `Blueprinter.dll` into `BepInEx/plugins/` before this mod.
 
+> [!CAUTION]
+> **Do not keep the old combined `MissilePack` plugin installed.** It registers the same json keys and will clash with this mod.
+
 ## Features
 
-- Glide (vanilla bomb physics) → shed cover → parachute → underwater sonar run
-- Add-only loadout on Darkreach / Alkyon HE Piledriver pylons
-- Encyclopedia identity: 5.65 m, 2350 kg launch, 450 kg HE, $3.9m
+- Glide → shed cover → parachute → underwater sonar (GSN); 450 kg HE, 2350 kg launch
+- Submerged stealth; Combat HUD preview; single + dual mounts on HE Piledriver slots
+- AI: low approach (≤1 km), release 22–32 km over clear water; player unrestricted
 - Content bundle `MK88Hydra.nobp` (`TorpedoVisual`)
 
 Json keys stay `missilepack_mk54_torpedo` / `MissilePack_MK54_Torpedo_single` for existing loadouts.
@@ -21,9 +24,10 @@ Json keys stay `missilepack_mk54_torpedo` / `MissilePack_MK54_Torpedo_single` fo
 ## Install
 
 1. Install BepInEx 5 and Blueprinter.
-2. Copy the `MK-88-Hydra/` folder into `BepInEx/plugins/MK-88-Hydra/`:
+2. Extract `MK-88-Hydra/` from the release zip into `BepInEx/plugins/MK-88-Hydra/`:
    - `MK88Hydra.dll`
    - `MK88Hydra.nobp`
+   - `PreviewHydra.png`
    - `Textures/` and `KozuchTorpedoTexture.png` if present
 3. Launch the game and select **MK-88 Hydra** on Piledriver HE pylons.
 

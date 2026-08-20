@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace Hydra.Patches
 {
-    /// <summary>Submerged torpedo: no radar return, no turret acquisition.</summary>
+    /// <summary>Submerged: no enemy radar; friendly track + sonar detect; no turret snap.</summary>
     [HarmonyPatch(typeof(Missile), nameof(Missile.GetRadarReturn))]
     internal static class MissileGetRadarReturnMk54StealthPatch
     {
@@ -41,12 +41,13 @@ namespace Hydra.Patches
     }
 
     [HarmonyPatch(typeof(Unit), nameof(Unit.InitializeUnit))]
-    internal static class UnitInitializeHydraDecoyPatch
+    internal static class UnitInitializeHydraShipSystemsPatch
     {
         private static void Postfix(Unit __instance)
         {
-            if (__instance is Ship ship)
-                HydraAcousticDecoyField.AttachIfNeeded(ship);
+            if (__instance is not Ship ship)
+                return;
+            HydraShipSonar.AttachIfNeeded(ship);
         }
     }
 }

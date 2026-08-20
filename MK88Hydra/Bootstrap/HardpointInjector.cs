@@ -92,20 +92,17 @@ namespace Hydra.Bootstrap
                     if (!HasHePiledriverOption(set.weaponOptions))
                         continue;
 
+                    if (!ContainsRef(set.weaponOptions, singleMount))
+                    {
+                        set.weaponOptions.Add(singleMount);
+                        count++;
+                    }
+
                     if (HasHePiledriverDouble(set.weaponOptions) && doubleMount != null)
                     {
                         if (!ContainsRef(set.weaponOptions, doubleMount))
                         {
                             set.weaponOptions.Add(doubleMount);
-                            count++;
-                        }
-                    }
-
-                    if (HasHePiledriverSingle(set.weaponOptions))
-                    {
-                        if (!ContainsRef(set.weaponOptions, singleMount))
-                        {
-                            set.weaponOptions.Add(singleMount);
                             count++;
                         }
                     }
@@ -120,19 +117,6 @@ namespace Hydra.Bootstrap
             {
                 if (IsHePiledriver(o))
                     return true;
-            }
-            return false;
-        }
-
-        private static bool HasHePiledriverSingle(List<WeaponMount> options)
-        {
-            foreach (WeaponMount o in options)
-            {
-                if (!IsHePiledriver(o))
-                    continue;
-                if (IsDoubleSlotKey(o.jsonKey))
-                    continue;
-                return true;
             }
             return false;
         }

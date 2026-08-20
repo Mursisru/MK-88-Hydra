@@ -248,6 +248,10 @@ namespace Hydra.Runtime
             if (_guidance != null)
                 _guidance.SyncLocked();
 
+            // Keep targetID on ship in air — vanilla onlyDefensive CIWS ignores missiles with null target.
+            if (ship != null)
+                _missile.SetTarget(ship);
+
             Vector3 pos = _missile.transform.position;
             float distShip = ship != null
                 ? TorpedoGuidance.HorizDist(pos, ship.transform.position)
@@ -269,13 +273,21 @@ namespace Hydra.Runtime
             }
 
             float flown = _guidance != null ? _guidance.HorizFlownM(pos) : 0f;
-            if (!_ringEntry && TorpedoPhaseRules.ShouldStartRingEntry(distShip))
+            Vector3 shipPos = ship != null
+                ? ship.transform.position
+                : (_guidance != null ? _guidance.ShipPos : pos);
+
+            if (!_ringEntry && TorpedoPhaseRules.ShouldStartRingEntry(distShip, _life))
             {
-                _ringEntry = true;
-                _ringAltAtStart = alt;
-                _ringDiveTime = 0f;
-                HydraPlugin.ModLog?.LogWarning(
-                    $"MK54 RING ENTRY 25km distShip={distShip / 1000f:F1}km alt={alt:F0}m — ship-line dive (pitch only)");
+                // Only arm the 25 km ring when swim corridor to ship is clear water.
+                if (TorpedoPhaseRules.OverClearSwimWater(pos, shipPos))
+                {
+                    _ringEntry = true;
+                    _ringAltAtStart = alt;
+                    _ringDiveTime = 0f;
+                    HydraPlugin.ModLog?.LogWarning(
+                        $"MK54 RING ENTRY 25km distShip={distShip / 1000f:F1}km alt={alt:F0}m — clear swim corridor");
+                }
             }
             else if (!_ringEntry &&
                      TorpedoPhaseRules.ShouldEarlyRingForAirBudget(distShip, flown, _life))
@@ -289,20 +301,30 @@ namespace Hydra.Runtime
                     $"MK54 RING ENTRY early air-budget remainToRing={remain / 1000f:F1}km airLeft={airLeft / 1000f:F1}km distShip={distShip / 1000f:F1}km alt={alt:F0}m");
             }
 
+            // Water under keel but land on swim path → keep gliding (cancel ring until corridor opens).
+            if (_ringEntry &&
+                TorpedoPhaseRules.OverDropWater(pos) &&
+                !TorpedoPhaseRules.OverClearSwimWater(pos, shipPos))
+            {
+                _ringEntry = false;
+                _ringDiveTime = 0f;
+                HydraPlugin.ModLog?.LogInfo(
+                    $"MK54 ring hold — land on swim path, continue glide distShip={distShip / 1000f:F1}km");
+            }
+
             if (_ringEntry)
                 _ringDiveTime += Time.fixedDeltaTime;
 
             if (_guidance != null)
                 TorpedoAirProfile.TickAirAim(_missile, _guidance, ship, _ringEntry);
 
-            if (_ringEntry &&
-                TorpedoPhaseRules.OverDropWater(pos) &&
-                _ringDiveTime >= 5f &&
-                alt > _ringAltAtStart - 40f &&
-                alt > TorpedoConstants.ShedKozuchAltitudeM + 50f)
+            // Hard gate: once inside ~25 km over clear swim water, do not glide to the ship.
+            // Requires MinGlide + some ring-dive time so drop-at-ring does not shed same frame.
+            if (TorpedoPhaseRules.ShouldForceShedAtRing(
+                    _ringEntry, distShip, _ringDiveTime, alt, _ringAltAtStart, _life, pos, shipPos))
             {
                 HydraPlugin.ModLog?.LogWarning(
-                    $"MK54 RING dive stalled alt={alt:F0}m start={_ringAltAtStart:F0}m — force shed (water)");
+                    $"MK54 FORCE SHED at ring distShip={distShip / 1000f:F1}km alt={alt:F0}m diveT={_ringDiveTime:F1}s");
                 Enter(TorpedoPhase.Ballistic);
                 return;
             }
@@ -318,11 +340,12 @@ namespace Hydra.Runtime
                 return;
             }
 
-            // Shed/chute only over deep water. Over land: keep Glide until coast.
-            if (TorpedoPhaseRules.ShouldShedKozuch(_ringEntry, alt, RadarAlt(), pos))
+            // Shed at ~500m only after min-glide AND ring dive has actually started.
+            if (TorpedoPhaseRules.ShouldShedKozuch(
+                    _ringEntry, alt, RadarAlt(), _life, _ringDiveTime, pos, shipPos))
             {
                 HydraPlugin.ModLog?.LogWarning(
-                    $"MK54 shed kozuch WATER alt={alt:F0}m distShip={distShip / 1000f:F1}km");
+                    $"MK54 shed kozuch WATER alt={alt:F0}m distShip={distShip / 1000f:F1}km diveT={_ringDiveTime:F1}s");
                 Enter(TorpedoPhase.Ballistic);
             }
         }
@@ -334,6 +357,10 @@ namespace Hydra.Runtime
 
             if (!_glideKitShed)
                 ShedGlideKit();
+
+            Unit? ship = ResolveLockedShip(allowNearestFallback: false);
+            if (ship != null)
+                _missile.SetTarget(ship);
 
             TorpedoBallisticFall.Apply(_missile, Time.fixedDeltaTime);
             if (_guidance != null)
@@ -350,6 +377,10 @@ namespace Hydra.Runtime
         {
             if (_missile == null)
                 return;
+
+            Unit? shipAir = ResolveLockedShip(allowNearestFallback: false);
+            if (shipAir != null)
+                _missile.SetTarget(shipAir);
 
             if (_guidance != null)
                 _guidance.SyncLocked();
@@ -402,10 +433,11 @@ namespace Hydra.Runtime
 
         private void TickSwim(float dt)
         {
-            if (_missile == null || _missile.rb == null)
+            Missile? m = _missile;
+            if (m == null || m.rb == null)
                 return;
 
-            float stepM = _missile.rb.velocity.magnitude * dt;
+            float stepM = m.rb.velocity.magnitude * dt;
             if (_guidance != null && !_guidance.ConsumeSwimFuel(stepM))
             {
                 HydraPlugin.ModLog?.LogWarning("MK54 swim fuel exhausted.");
@@ -417,46 +449,41 @@ namespace Hydra.Runtime
             if (TryImpact("swim"))
                 return;
 
-            if (TorpedoImpact.IsBeached(_missile.transform.position))
+            if (TorpedoImpact.IsBeached(m.transform.position))
             {
                 Boom(Vector3.up, "swim-beach");
                 return;
             }
 
             // Dead lock: stay on lastKnown — never nearest-ship retarget.
-            Vector3 pos = _missile.transform.position;
-            _guidance?.TryDecoySeduction(pos);
+            Vector3 pos = m.transform.position;
 
             Unit? ship = ResolveLockedShip(allowNearestFallback: false);
+            if (ship != null)
+                m.SetTarget(ship);
+
             bool terminal = false;
-            Vector3 aim = _guidance != null
-                ? _guidance.SwimAim(pos, ship, out terminal)
-                : pos + _missile.transform.forward * 200f;
+            bool gsnActive = false;
+            Vector3 aim = pos + m.transform.forward * 200f;
+            if (_guidance != null)
+                Mk54SonarHoming.ComputeAim(_guidance, pos, out aim, out terminal, out gsnActive);
 
-            TorpedoSwimPhysics.Apply(_missile, aim, dt, terminal, _phaseTime);
-
-            if (_guidance != null && _guidance.DecoySeduced)
-            {
-                float toDecoy = Vector3.Distance(pos, aim);
-                if (toDecoy <= TorpedoConstants.DetonateProximityM)
-                    Boom(_missile.transform.forward, "decoy-trap");
-                return;
-            }
+            TorpedoSwimPhysics.Apply(m, aim, dt, terminal, _phaseTime, gsnActive);
 
             if (ship != null)
             {
-                float dist = Vector3.Distance(_missile.transform.position, ship.transform.position);
+                float dist = Vector3.Distance(m.transform.position, ship.transform.position);
                 if (dist <= TorpedoConstants.DetonateProximityM)
-                    Boom(_missile.transform.forward, terminal ? "ship-terminal" : "ship");
+                    Boom(m.transform.forward, terminal ? "ship-terminal" : "ship");
                 return;
             }
 
             if (_guidance == null)
                 return;
 
-            float toLast = Vector3.Distance(_missile.transform.position, aim);
+            float toLast = Vector3.Distance(m.transform.position, aim);
             if (toLast <= TorpedoConstants.DetonateProximityM)
-                Boom(_missile.transform.forward, "ship-dead-lastpos");
+                Boom(m.transform.forward, "ship-dead-lastpos");
         }
 
         private static void CapSwimEntrySpeed(Missile missile)

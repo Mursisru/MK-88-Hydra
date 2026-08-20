@@ -21,20 +21,22 @@ namespace Hydra
         public const int PreviewIconAlphaBase = 255;
         public const int PreviewIconStrokeRadius = 3;
 
-        // Hydroacoustic decoy traps (per-ship counts, 7% redirect each).
-        public const float DecoyTrapRedirectChance = 0.07f;
-        public const float DecoyFieldRadiusM = 450f;
-        public const float DecoyBubbleDepthM = 3f;
-        public const float DecoyBubbleLifetimeS = 1.2f;
-        public const float DecoyBubbleSpeedMps = 0.35f;
-        public const float DecoyBubbleSizeM = 0.18f;
-        public const float DecoyBubbleIntervalS = 0.45f;
-        public const int DecoyCountAnnex = 130;
-        public const int DecoyCountHyperion = 130;
-        public const int DecoyCountDynamo = 70;
-        public const int DecoyCountArgus = 70;
-        public const int DecoyCountShard = 30;
-        public const int DecoyCountCursor = 50;
+        // Hull sonar (underwater-only detection, ship size scales range up to 25 km).
+        public const float SonarMinRangeM = 6000f;
+        public const float SonarMaxRangeM = 25000f;
+        public const float SonarReferenceLengthM = 220f;
+        public const float SonarScanIntervalS = 1.5f;
+        public const float SonarMinSignal = 0.12f;
+        public const float SonarTargetStrength = 0.85f;
+
+        // AI employment — vanilla GlideBombing + Fire gate (player unrestricted).
+        public const float AiReleaseMaxOwnerAltM = 1000f;
+        public const float AiReleaseMinDistShipM = 22000f;
+        public const float AiReleaseMaxDistShipM = 32000f;
+        public const float AiTargetMaxRadarAltM = 80f;
+        public const float AiTargetMaxSpeedMps = 80f;
+        public const float AiMinAlignmentDeg = 20f;
+        public const float AiGlideFireCooldownS = 5f;
 
         // Full hung model envelope (was 3.9×1.45 visual vs 3.9 encyclopedia).
         public const float LengthM = 5.65f;
@@ -129,7 +131,7 @@ namespace Hydra
         public const float GlideDragAccel = 0.018f;
         public const float GlideAngularDrag = 8f;
         public const float FinDeployAngleDeg = 70f;
-        public const float MinGlideSecondsBeforeShed = 8f;
+        public const float MinGlideSecondsBeforeShed = 5f;
         public const float MinAirGlideDistM = 3000f;
         // Soft descent cue via aimpoint only (~6k ft/min slope hint)
         public const float SoftSinkFpm = 6000f;
@@ -192,7 +194,8 @@ namespace Hydra
         public const float SwimPropThrustGain = 6f;
         public const float SwimPropThrustMax = 120f;
         public const float SwimOverSpeedBrake = 0f;
-        public const float SwimFinAuthority = 0.0002f;
+        public const float SwimFinAuthority = 0.00035f;
+        public const float GsnFinAuthorityMult = 1.85f;
         public const float TerminalFinMult = 1.15f;
         public const float SwimMaxAngVelRad = 1.8f;
         public const float SwimLinearDrag = 850f;
@@ -206,8 +209,9 @@ namespace Hydra
         public const float PropRpm = 480f;
         public const float FinFoldSeconds = 1f;
         public const float SoftKillTimeoutS = 900f;
-        public const float DetonateProximityM = 8f;
-        public const float TerminalRangeM = 300f;
+        public const float DetonateProximityM = 12f;
+        public const float SonarHomingAcquireRangeM = 25000f;
+        public const float TerminalRangeM = 1200f;
         public const float TerminalTurnRateDeg = 90f;
         public const float TerminalSpeedMult = 1f;
         public const float InterceptLeadMaxS = 12f;
@@ -220,6 +224,10 @@ namespace Hydra
         public const float RouteEntryStandoffM = 25000f;
         public const float RouteEntryStandoffMinM = 2000f;
         public const float RouteEntryRingSlackM = 800f;
+        /// <summary>Still gliding inside this distance past the ring → force shed (no overshoot to ship).</summary>
+        public const float RouteEntryForceShedInsideM = 500f;
+        /// <summary>Max seconds of ring dive before forced shed if altitude barely dropped.</summary>
+        public const float RouteEntryDiveStallS = 2.5f;
         public const float RouteAirGlideReachMarginM = 500f;
         public const float RouteShedApproachM = 4000f;
         public const float RouteChuteApproachM = 2500f;
@@ -229,6 +237,8 @@ namespace Hydra
         public const float ShipSearchRangeM = FallbackAirGlideRangeM + SwimFuelRangeM;
         public const float RouteShoreSlackM = 1.5f;
         public const float RouteMinKeelClearM = 6f;
+        /// <summary>Sample spacing when probing swim corridor for land barriers.</summary>
+        public const float RouteSwimCorridorStepM = 750f;
         public const float ImpactRadiusM = 0.39f; // WidthM * 0.45
         public const float ImpactLookMinM = 0.15f;
     }

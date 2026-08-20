@@ -80,6 +80,7 @@ namespace Hydra.Bootstrap
                         TorpedoMount.info.weaponPrefab = TorpedoDefinition.unitPrefab;
 
                     TorpedoMountDouble = EnsureDoubleMount(enc, TorpedoDefinition, TorpedoMount);
+                    ShareWeaponInfoAcrossMounts();
                     HardpointInjector.InjectPiledriverSlots(enc, TorpedoMount, TorpedoMountDouble);
                 }
 
@@ -192,11 +193,15 @@ namespace Hydra.Bootstrap
             if (mount.prefab != null && NobpContent.VisualPrefab != null)
                 PrefabFactory.StampVisual(mount.prefab, NobpContent.VisualPrefab);
 
-            WeaponInfo? info = mount.info ?? TorpedoInfo;
+            WeaponInfo? info = TorpedoInfo;
             if (info == null)
             {
-                info = ScriptableObject.CreateInstance<WeaponInfo>();
-                info.name = "MissilePack_MK54_Info";
+                info = mount.info;
+                if (info == null)
+                {
+                    info = ScriptableObject.CreateInstance<WeaponInfo>();
+                    info.name = "MissilePack_MK54_Info";
+                }
             }
 
             WeaponMount? shellMount = keepDualWeapons ? ResolveDoubleShellMount(enc) : ResolveShellMount(enc);
@@ -205,6 +210,7 @@ namespace Hydra.Bootstrap
             {
                 PrefabFactory.CopyWeaponInfoScalars(shellMount.info, info);
                 TorpedoWeaponRange.Apply(info, shellMount.info);
+                Mk54AiEmployment.ApplyProfile(info);
             }
 
             Sprite? preview = Hydra.Runtime.HydraWeaponIcon.Get();
@@ -218,9 +224,12 @@ namespace Hydra.Bootstrap
             info.costPerRound = TorpedoConstants.Cost;
             info.blastDamage = TorpedoConstants.BlastYieldKg;
             info.nuclear = false;
-            info.bomb = true;
+            // bomb=false → MissileUI (not free-fall CCIP). glideBomb=true → planning weapon.
+            // Free-fall only after kozuch shed (phase Ballistic), not HUD type.
+            info.bomb = false;
             info.glideBomb = true;
             info.missile = false;
+            Mk54AiEmployment.ApplyProfile(info);
             if (def?.unitPrefab != null)
                 info.weaponPrefab = def.unitPrefab;
 
@@ -256,6 +265,38 @@ namespace Hydra.Bootstrap
                 $"Refreshed MK54 mount x{ammo} visual={(NobpContent.VisualPrefab != null)} mass={mount.mass:F0}kg");
         }
 
+        /// <summary>
+        /// WeaponManager stacks stations by WeaponInfo reference equality.
+        /// Single + double mounts must share one SO so pylons cycle as one station.
+        /// </summary>
+        private static void ShareWeaponInfoAcrossMounts()
+        {
+            WeaponInfo? shared = TorpedoMount?.info ?? TorpedoMountDouble?.info ?? TorpedoInfo;
+            if (shared == null)
+                return;
+
+            TorpedoInfo = shared;
+            ApplySharedInfo(TorpedoMount, shared);
+            ApplySharedInfo(TorpedoMountDouble, shared);
+        }
+
+        private static void ApplySharedInfo(WeaponMount? mount, WeaponInfo shared)
+        {
+            if (mount == null)
+                return;
+
+            mount.info = shared;
+            mount.sortWeapons = true;
+            if (mount.prefab == null)
+                return;
+
+            foreach (MountedMissile mm in mount.prefab.GetComponentsInChildren<MountedMissile>(true))
+            {
+                if (mm != null)
+                    mm.info = shared;
+            }
+        }
+
         private static WeaponMount? EnsureDoubleMount(
             Encyclopedia enc,
             MissileDefinition? missileDef,
@@ -269,7 +310,10 @@ namespace Hydra.Bootstrap
                 existing.prefab != null &&
                 !IsVanillaKey(existing.jsonKey))
             {
+                existing.info = singleMount.info;
                 RefreshMount(enc, existing, missileDef, ammo: 2, keepDualWeapons: true);
+                existing.info = singleMount.info;
+                ApplySharedInfo(existing, singleMount.info);
                 return existing;
             }
 
@@ -280,7 +324,15 @@ namespace Hydra.Bootstrap
                 return null;
             }
 
-            return CreateWeaponMount(enc, missileDef, shellDouble, TorpedoConstants.MountJsonKeyDouble, ammo: 2, keepDualWeapons: true);
+            WeaponMount? created = CreateWeaponMount(
+                enc, missileDef, shellDouble, TorpedoConstants.MountJsonKeyDouble, ammo: 2, keepDualWeapons: true);
+            if (created != null && singleMount.info != null)
+            {
+                created.info = singleMount.info;
+                ApplySharedInfo(created, singleMount.info);
+                TorpedoInfo = singleMount.info;
+            }
+            return created;
         }
 
         private static WeaponMount? CreateWeaponMount(Encyclopedia enc, MissileDefinition? missileDef)
@@ -337,8 +389,9 @@ namespace Hydra.Bootstrap
             mount.GroundSafety = true;
             MountDisabled?.SetValue(mount, false);
 
-            WeaponInfo info = ScriptableObject.CreateInstance<WeaponInfo>();
-            info.name = "MissilePack_MK54_Info";
+            WeaponInfo info = TorpedoInfo ?? ScriptableObject.CreateInstance<WeaponInfo>();
+            if (TorpedoInfo == null)
+                info.name = "MissilePack_MK54_Info";
             PrefabFactory.CopyWeaponInfoScalars(shellInfo, info);
             Sprite? preview = Hydra.Runtime.HydraWeaponIcon.Get();
             if (preview != null)
@@ -357,11 +410,12 @@ namespace Hydra.Bootstrap
             info.sling = false;
             info.cargo = false;
             info.troops = false;
-            // bomb=true → CCIP / drop UX; glideBomb=true → glide guidance path
-            info.bomb = true;
+            // bomb=false → MissileUI (glide/lock), not free-fall CCIP BombingUI.
+            info.bomb = false;
             info.glideBomb = true;
             info.missile = false;
             TorpedoWeaponRange.Apply(info, shellInfo);
+            Mk54AiEmployment.ApplyProfile(info);
             mount.info = info;
 
             GameObject mountGo = PrefabFactory.CloneAsPrefab(
@@ -435,7 +489,17 @@ namespace Hydra.Bootstrap
         {
             MountedMissile[] mounted = mountGo.GetComponentsInChildren<MountedMissile>(true);
             if (mounted.Length >= 2)
+            {
+                // Preserve shell dual-rail layout; only separate if they share the same pose.
+                if (mounted[0] != null && mounted[1] != null &&
+                    (mounted[0].transform.localPosition - mounted[1].transform.localPosition).sqrMagnitude < 0.01f)
+                {
+                    // Lateral offset (bay / twin-rail), not aft — aft hides the second in the bay.
+                    mounted[1].transform.localPosition =
+                        mounted[0].transform.localPosition + new Vector3(0.85f, 0f, 0f);
+                }
                 return;
+            }
             if (mounted.Length == 0)
                 return;
 
@@ -445,7 +509,7 @@ namespace Hydra.Bootstrap
 
             GameObject clone = UnityEngine.Object.Instantiate(first.gameObject, first.transform.parent);
             clone.name = first.name + "_2";
-            clone.transform.localPosition = first.transform.localPosition;
+            clone.transform.localPosition = first.transform.localPosition + new Vector3(0.85f, 0f, 0f);
             clone.transform.localRotation = first.transform.localRotation;
         }
 

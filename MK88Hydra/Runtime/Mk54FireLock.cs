@@ -3,7 +3,7 @@ using UnityEngine;
 namespace Hydra.Runtime
 {
     /// <summary>
-    /// Fire-target snapshot. Survives SetTarget(null) (needed so seeker/HUD stay off during air).
+    /// Fire-target snapshot. Survives seeker patches; SyncVar keeps ship target so CIWS can react in air.
     /// Air guidance MUST use this — never UnitRegistry nearest-ship scan.
     /// </summary>
     internal sealed class Mk54FireLock : MonoBehaviour
@@ -41,9 +41,12 @@ namespace Hydra.Runtime
                 slot.DebugName = "none";
             }
 
-            // Clear SyncVar so OpticalSeeker/HUD do not treat this as a glide bomb —
-            // guidance reads Mk54FireLock only.
-            missile.SetTarget(null);
+            // Snapshot fire target. Keep SyncVar target = ship so ship CIWS (onlyDefensive)
+            // sees an inbound missile; OpticalSeeker is patched off for MK54.
+            if (locked != null)
+                missile.SetTarget(locked);
+            else
+                missile.SetTarget(null);
 
             HydraPlugin.ModLog?.LogInfo(
                 $"MK54FireLock capture target={slot.DebugName} id={slot.Id}");

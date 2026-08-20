@@ -7,7 +7,7 @@ namespace Hydra.Runtime
     /// </summary>
     internal static class TorpedoSwimPhysics
     {
-        internal static void Apply(Missile missile, Vector3 aim, float dt, bool terminal, float swimTimeS)
+        internal static void Apply(Missile missile, Vector3 aim, float dt, bool terminal, float swimTimeS, bool gsnHoming)
         {
             if (missile == null || missile.rb == null || dt <= 0f)
                 return;
@@ -46,7 +46,7 @@ namespace Hydra.Runtime
 
             Vector3 to = aim - pos;
             Vector3 wantDir;
-            if (terminal)
+            if (terminal || gsnHoming)
             {
                 wantDir = to.sqrMagnitude > 0.01f ? to.normalized : forward;
             }
@@ -86,6 +86,8 @@ namespace Hydra.Runtime
             {
                 axis /= sinAng;
                 float fin = dynQ * TorpedoConstants.SwimFinAuthority * sinAng;
+                if (gsnHoming)
+                    fin *= TorpedoConstants.GsnFinAuthorityMult;
                 if (terminal)
                     fin *= TorpedoConstants.TerminalFinMult;
                 rb.AddTorque(axis * fin, ForceMode.Acceleration);

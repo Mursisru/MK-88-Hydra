@@ -1,17 +1,24 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.0] - 2026-08-20
+
+First public release of the standalone MK-88 Hydra mod for Nuclear Option.
 
 ### Added
 
-- Combat HUD preview icon (`PreviewHydra.png`, contour line-art)
-- Underwater stealth: submerged torpedo drops radar track / turret acquisition
-- Carrier hydroacoustic decoy traps (Annex/Hyperion 130, Dynamo/Argus 70, Shard 30, Cursor 50; 7% redirect each)
-- Dual torpedo mount (`MissilePack_MK54_Torpedo_double`) on Piledriver x2 hardpoints
+- Air-drop anti-ship torpedo for Darkreach / Alkyon HE Piledriver slots
+- Lifecycle: glide → cover shed → parachute → underwater sonar run (GSN)
+- Combat HUD preview icon (`PreviewHydra.png`)
+- Underwater stealth (RCS / radar / turret ignore while submerged)
+- Dual mount (`MissilePack_MK54_Torpedo_double`) on Piledriver x2 hardpoints; single mount on every HE Piledriver slot
+- AI employment: vanilla GlideBombing, release ≤1 km AGL at 22–32 km over clear swim water
+- Blueprinter bundle `MK88Hydra.nobp` (`TorpedoVisual`)
 
-### Changed
+### Removed
 
-- Warhead FX via `Mk54WarheadFx` (vanilla TBM shockwave path)
+- Carrier hydroacoustic decoy traps and seduction mechanics
+
+Json keys unchanged (`missilepack_mk54_torpedo` / `MissilePack_MK54_Torpedo_single`).
 
 ## [1.1.0] - 2026-08-17
 
@@ -19,13 +26,3 @@
 
 - Split out of MissilePack into a standalone MK-88 Hydra plugin (`com.mursisru.mk88hydra`)
 - Plugin folder `BepInEx/plugins/MK-88-Hydra/`, bundle `MK88Hydra.nobp`
-
-Json keys are unchanged (`missilepack_mk54_torpedo`).
-
-## [1.0.0] - 2026-08-14
-
-### Added
-
-- MK-88 Hydra air-drop torpedo for Darkreach / Alkyon Piledriver HE slots
-- Blueprinter `.nobp` visual bundle and encyclopedia registration
-- Torpedo lifecycle: glide → cover shed → parachute → underwater swim

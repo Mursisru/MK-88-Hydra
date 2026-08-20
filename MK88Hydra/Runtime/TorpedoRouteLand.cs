@@ -66,5 +66,39 @@ namespace Hydra.Runtime
                 return false;
             return mapY >= sea - TorpedoConstants.RouteShoreSlackM;
         }
+
+        /// <summary>
+        /// True if swim path from → to is continuous deep water (no land/shallow barriers).
+        /// Even if current XZ is water, a peninsula/island on the run to the ship blocks entry.
+        /// </summary>
+        internal static bool HasClearDeepWaterCorridor(Vector3 from, Vector3 to)
+        {
+            float stepM = TorpedoConstants.RouteSwimCorridorStepM;
+            if (stepM < 50f)
+                stepM = 50f;
+
+            Vector3 a = from;
+            a.y = 0f;
+            Vector3 b = to;
+            b.y = 0f;
+
+            if (!IsDeepWater(a.x, a.z))
+                return false;
+
+            float dist = Vector3.Distance(a, b);
+            if (dist < 1f)
+                return true;
+
+            int steps = Mathf.Max(1, Mathf.CeilToInt(dist / stepM));
+            for (int i = 1; i <= steps; i++)
+            {
+                float t = i / (float)steps;
+                Vector3 p = Vector3.Lerp(a, b, t);
+                if (!IsDeepWater(p.x, p.z))
+                    return false;
+            }
+
+            return true;
+        }
     }
 }
