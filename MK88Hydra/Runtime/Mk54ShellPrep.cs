@@ -22,6 +22,7 @@ namespace Hydra.Runtime
 
             ImpactFuseField?.SetValue(missile, false);
             EnsureBlastYield(missile);
+            Mk54WarheadFx.Ensure(missile);
             Disarm(missile);
         }
 

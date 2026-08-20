@@ -3,12 +3,11 @@ using UnityEngine;
 namespace Hydra.Runtime
 {
     /// <summary>
-    /// Underwater: constant prop thrust vs quadratic drag → natural Vmax ≈ SwimSpeedKmh.
-    /// No hard speed clamp / drag-cancel hold.
+    /// Underwater: ramped prop thrust + quadratic + linear drag → gradual cruise ≈ SwimSpeedKmh.
     /// </summary>
     internal static class TorpedoSwimPhysics
     {
-        internal static void Apply(Missile missile, Vector3 aim, float dt, bool terminal)
+        internal static void Apply(Missile missile, Vector3 aim, float dt, bool terminal, float swimTimeS)
         {
             if (missile == null || missile.rb == null || dt <= 0f)
                 return;
@@ -27,14 +26,14 @@ namespace Hydra.Runtime
             float speed = vel.magnitude;
             Vector3 forward = xform.forward;
 
-            // --- Quadratic drag (sets soft top speed with thrust) ---
             if (speed > 0.05f)
             {
                 float q = 0.5f * TorpedoConstants.WaterDensity * speed * speed;
                 rb.AddForce(-vel.normalized * (q * TorpedoConstants.SwimCdArea), ForceMode.Force);
+                if (TorpedoConstants.SwimLinearDrag > 0f)
+                    rb.AddForce(-vel.normalized * (TorpedoConstants.SwimLinearDrag * speed), ForceMode.Force);
             }
 
-            // Lateral / heave only — surge from thrust vs drag
             Vector3 localVel = xform.InverseTransformDirection(vel);
             Vector3 dampLocal = new Vector3(
                 -localVel.x * TorpedoConstants.SwimSideDamp,
@@ -42,11 +41,9 @@ namespace Hydra.Runtime
                 0f);
             rb.AddForce(xform.TransformDirection(dampLocal), ForceMode.Acceleration);
 
-            // --- Depth ---
             float depthErr = targetY - pos.y;
             rb.AddForce(Vector3.up * (depthErr * TorpedoConstants.SwimBuoyancyGain), ForceMode.Acceleration);
 
-            // --- Heading ---
             Vector3 to = aim - pos;
             Vector3 wantDir;
             if (terminal)
@@ -63,13 +60,11 @@ namespace Hydra.Runtime
                     wantDir.Normalize();
             }
 
-            // --- Prop thrust (N): equilibrium with drag ≈ SwimSpeedKmh, not a hard lock ---
             float surge = Vector3.Dot(vel, forward);
             float thrustN = TorpedoConstants.SwimPropThrustN;
             if (terminal)
                 thrustN *= TorpedoConstants.TerminalSpeedMult;
 
-            // Mild advance-ratio: a bit more bite when slow, fades toward design cruise
             float cruise = TorpedoConstants.SwimSpeedMps;
             float adv = cruise > 0.1f ? Mathf.Clamp01(surge / cruise) : 0f;
             thrustN *= Mathf.Lerp(
@@ -77,9 +72,13 @@ namespace Hydra.Runtime
                 TorpedoConstants.SwimPropCruiseMult,
                 adv);
 
+            float ramp = TorpedoConstants.SwimThrustRampS > 0.01f
+                ? Mathf.SmoothStep(0f, 1f, swimTimeS / TorpedoConstants.SwimThrustRampS)
+                : 1f;
+            thrustN *= ramp;
+
             rb.AddForce(forward * thrustN, ForceMode.Force);
 
-            // --- Fins (dynamic pressure) ---
             float dynQ = 0.5f * TorpedoConstants.WaterDensity * Mathf.Max(speed, 2f) * Mathf.Max(speed, 2f);
             Vector3 axis = Vector3.Cross(forward, wantDir);
             float sinAng = Mathf.Clamp(axis.magnitude, 0f, 1f);
@@ -92,7 +91,6 @@ namespace Hydra.Runtime
                 rb.AddTorque(axis * fin, ForceMode.Acceleration);
             }
 
-            // Soft weathercock — not a speed clamp
             if (speed > 4f)
             {
                 Vector3 flow = vel / speed;

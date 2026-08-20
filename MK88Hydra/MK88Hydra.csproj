@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <!-- Ship .nobp as loose file next to DLL (Blueprinter + NobpContent). Do not embed — double-load breaks AssetBundle. -->
+    <EmbeddedResource Include="Resources\PreviewHydra.png" />
   </ItemGroup>
 
   <ItemGroup>
@@ -78,8 +79,10 @@
       <NobpFiles Include="$(MSBuildProjectDirectory)\..\UnityBake\Build\MK88Hydra.nobp" Condition="Exists('$(MSBuildProjectDirectory)\..\UnityBake\Build\MK88Hydra.nobp')" />
       <TexFiles Include="$(MSBuildProjectDirectory)\..\UnityBake\Assets\MissilePack\KozuchTorpedoTexture.png" Condition="Exists('$(MSBuildProjectDirectory)\..\UnityBake\Assets\MissilePack\KozuchTorpedoTexture.png')" />
       <PartTexFiles Include="$(MSBuildProjectDirectory)\..\UnityBake\Assets\MissilePack\Textures\*.*" Condition="Exists('$(MSBuildProjectDirectory)\..\UnityBake\Assets\MissilePack\Textures')" />
+      <PreviewIcon Include="$(MSBuildProjectDirectory)\Resources\PreviewHydra.png" Condition="Exists('$(MSBuildProjectDirectory)\Resources\PreviewHydra.png')" />
     </ItemGroup>
     <Copy SourceFiles="@(NobpFiles)" DestinationFolder="$(ModDeployDir)" SkipUnchangedFiles="false" Condition="'@(NobpFiles)' != ''" />
+    <Copy SourceFiles="@(PreviewIcon)" DestinationFolder="$(ModDeployDir)" SkipUnchangedFiles="false" Condition="'@(PreviewIcon)' != ''" />
     <MakeDir Directories="$(ModDeployDir)\Textures" Condition="'@(PartTexFiles)' != ''" />
     <Copy SourceFiles="@(PartTexFiles)" DestinationFolder="$(ModDeployDir)\Textures" SkipUnchangedFiles="false" Condition="'@(PartTexFiles)' != ''" />
     <Copy SourceFiles="@(TexFiles)" DestinationFolder="$(ModDeployDir)" SkipUnchangedFiles="false" Condition="'@(TexFiles)' != ''" />

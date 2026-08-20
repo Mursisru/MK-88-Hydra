@@ -19,6 +19,7 @@ namespace Hydra.Bootstrap
         private static bool _done;
         internal static MissileDefinition? TorpedoDefinition { get; private set; }
         internal static WeaponMount? TorpedoMount { get; private set; }
+        internal static WeaponMount? TorpedoMountDouble { get; private set; }
         internal static WeaponInfo? TorpedoInfo { get; private set; }
 
         private static readonly FieldInfo? UnitDisabled =
@@ -37,6 +38,7 @@ namespace Hydra.Bootstrap
             {
                 PrefabFactory.AssertPiledriverIntact(enc);
                 NobpContent.TryLoad();
+                Mk54WarheadFx.CaptureTbm(enc);
 
                 if (Encyclopedia.Lookup != null &&
                     Encyclopedia.Lookup.TryGetValue(TorpedoConstants.MissileJsonKey, out UnitDefinition existing) &&
@@ -76,7 +78,9 @@ namespace Hydra.Bootstrap
                 {
                     if (TorpedoDefinition?.unitPrefab != null && TorpedoMount.info != null)
                         TorpedoMount.info.weaponPrefab = TorpedoDefinition.unitPrefab;
-                    HardpointInjector.InjectPiledriverSlots(enc, TorpedoMount);
+
+                    TorpedoMountDouble = EnsureDoubleMount(enc, TorpedoDefinition, TorpedoMount);
+                    HardpointInjector.InjectPiledriverSlots(enc, TorpedoMount, TorpedoMountDouble);
                 }
 
                 PrefabFactory.AssertPiledriverIntact(enc);
@@ -174,7 +178,12 @@ namespace Hydra.Bootstrap
             return def;
         }
 
-        private static void RefreshMount(Encyclopedia enc, WeaponMount? mount, MissileDefinition? def)
+        private static void RefreshMount(
+            Encyclopedia enc,
+            WeaponMount? mount,
+            MissileDefinition? def,
+            int ammo = 1,
+            bool keepDualWeapons = false)
         {
             if (mount == null)
                 return;
@@ -190,12 +199,17 @@ namespace Hydra.Bootstrap
                 info.name = "MissilePack_MK54_Info";
             }
 
-            WeaponMount? shellMount = ResolveShellMount(enc);
+            WeaponMount? shellMount = keepDualWeapons ? ResolveDoubleShellMount(enc) : ResolveShellMount(enc);
+            shellMount ??= ResolveShellMount(enc);
             if (shellMount?.info != null)
             {
                 PrefabFactory.CopyWeaponInfoScalars(shellMount.info, info);
                 TorpedoWeaponRange.Apply(info, shellMount.info);
             }
+
+            Sprite? preview = Hydra.Runtime.HydraWeaponIcon.Get();
+            if (preview != null)
+                info.weaponIcon = preview;
 
             info.weaponName = TorpedoConstants.WeaponInfoName;
             info.shortName = TorpedoConstants.ShortName;
@@ -211,9 +225,11 @@ namespace Hydra.Bootstrap
                 info.weaponPrefab = def.unitPrefab;
 
             mount.info = info;
-            mount.mountName = TorpedoConstants.MountDisplayName;
-            mount.jsonKey = TorpedoConstants.MountJsonKey;
-            mount.mass = mount.emptyMass + TorpedoConstants.LaunchMassKg;
+            mount.ammo = ammo;
+            mount.mountName = ammo >= 2
+                ? TorpedoConstants.MountDisplayName + " x2"
+                : TorpedoConstants.MountDisplayName;
+            mount.mass = mount.emptyMass + TorpedoConstants.LaunchMassKg * ammo;
             mount.RCS = TorpedoConstants.RadarSize;
             mount.emptyRCS = 0f;
             mount.emptyCost = 0f;
@@ -223,6 +239,11 @@ namespace Hydra.Bootstrap
 
             if (mount.prefab != null)
             {
+                if (keepDualWeapons)
+                    EnsureDualMountedWeapons(mount.prefab);
+                else
+                    KeepSingleMountedWeapon(mount.prefab);
+
                 foreach (MountedMissile mm in mount.prefab.GetComponentsInChildren<MountedMissile>(true))
                 {
                     if (mm != null)
@@ -232,14 +253,38 @@ namespace Hydra.Bootstrap
 
             TorpedoInfo = info;
             HydraPlugin.ModLog?.LogInfo(
-                $"Refreshed MK54 mount visual={(NobpContent.VisualPrefab != null)} mass={mount.mass:F0}kg");
+                $"Refreshed MK54 mount x{ammo} visual={(NobpContent.VisualPrefab != null)} mass={mount.mass:F0}kg");
+        }
+
+        private static WeaponMount? EnsureDoubleMount(
+            Encyclopedia enc,
+            MissileDefinition? missileDef,
+            WeaponMount singleMount)
+        {
+            if (missileDef?.unitPrefab == null || singleMount?.info == null)
+                return null;
+
+            if (Encyclopedia.WeaponLookup != null &&
+                Encyclopedia.WeaponLookup.TryGetValue(TorpedoConstants.MountJsonKeyDouble, out WeaponMount existing) &&
+                existing.prefab != null &&
+                !IsVanillaKey(existing.jsonKey))
+            {
+                RefreshMount(enc, existing, missileDef, ammo: 2, keepDualWeapons: true);
+                return existing;
+            }
+
+            WeaponMount? shellDouble = ResolveDoubleShellMount(enc);
+            if (shellDouble?.prefab == null || shellDouble.info == null)
+            {
+                HydraPlugin.ModLog?.LogWarning("No HE Piledriver x2 shell mount — double torpedo mount skipped.");
+                return null;
+            }
+
+            return CreateWeaponMount(enc, missileDef, shellDouble, TorpedoConstants.MountJsonKeyDouble, ammo: 2, keepDualWeapons: true);
         }
 
         private static WeaponMount? CreateWeaponMount(Encyclopedia enc, MissileDefinition? missileDef)
         {
-            if (missileDef?.unitPrefab == null)
-                return null;
-
             WeaponMount? shellMount = ResolveShellMount(enc);
             if (shellMount?.prefab == null || shellMount.info == null)
             {
@@ -247,20 +292,44 @@ namespace Hydra.Bootstrap
                 return null;
             }
 
+            return CreateWeaponMount(
+                enc,
+                missileDef,
+                shellMount,
+                TorpedoConstants.MountJsonKey,
+                ammo: 1,
+                keepDualWeapons: false);
+        }
+
+        private static WeaponMount? CreateWeaponMount(
+            Encyclopedia enc,
+            MissileDefinition? missileDef,
+            WeaponMount shellMount,
+            string mountJsonKey,
+            int ammo,
+            bool keepDualWeapons)
+        {
+            if (missileDef?.unitPrefab == null)
+                return null;
+
             // Snapshot shell fields BEFORE creating anything — never write to shellMount
             string shellKey = shellMount.jsonKey;
             GameObject shellPrefab = shellMount.prefab;
             WeaponInfo shellInfo = shellMount.info;
 
             WeaponMount mount = ScriptableObject.CreateInstance<WeaponMount>();
-            mount.name = "MissilePack_MK54_Mount";
-            mount.jsonKey = TorpedoConstants.MountJsonKey;
-            mount.mountName = TorpedoConstants.MountDisplayName;
+            mount.name = mountJsonKey.IndexOf("double", StringComparison.OrdinalIgnoreCase) >= 0
+                ? "MissilePack_MK54_Mount_Double"
+                : "MissilePack_MK54_Mount";
+            mount.jsonKey = mountJsonKey;
+            mount.mountName = ammo >= 2
+                ? TorpedoConstants.MountDisplayName + " x2"
+                : TorpedoConstants.MountDisplayName;
             PrefabFactory.CopyMountScalars(shellMount, mount);
-            mount.ammo = 1;
+            mount.ammo = ammo;
             mount.missileBay = shellMount.missileBay;
             mount.emptyMass = 25f;
-            mount.mass = mount.emptyMass + TorpedoConstants.MassKg;
+            mount.mass = mount.emptyMass + TorpedoConstants.LaunchMassKg * ammo;
             mount.RCS = TorpedoConstants.RadarSize;
             mount.emptyRCS = 0f;
             mount.emptyCost = 0f;
@@ -271,6 +340,9 @@ namespace Hydra.Bootstrap
             WeaponInfo info = ScriptableObject.CreateInstance<WeaponInfo>();
             info.name = "MissilePack_MK54_Info";
             PrefabFactory.CopyWeaponInfoScalars(shellInfo, info);
+            Sprite? preview = Hydra.Runtime.HydraWeaponIcon.Get();
+            if (preview != null)
+                info.weaponIcon = preview;
             info.weaponName = TorpedoConstants.WeaponInfoName;
             info.shortName = TorpedoConstants.ShortName;
             info.description = "Air-dropped anti-ship torpedo. Sonar-guided, 450kg warhead.";
@@ -292,8 +364,13 @@ namespace Hydra.Bootstrap
             TorpedoWeaponRange.Apply(info, shellInfo);
             mount.info = info;
 
-            GameObject mountGo = PrefabFactory.CloneAsPrefab(shellPrefab, "MissilePack_MK54_MountPrefab");
-            KeepSingleMountedWeapon(mountGo);
+            GameObject mountGo = PrefabFactory.CloneAsPrefab(
+                shellPrefab,
+                keepDualWeapons ? "MissilePack_MK54_MountPrefab_Double" : "MissilePack_MK54_MountPrefab");
+            if (keepDualWeapons)
+                EnsureDualMountedWeapons(mountGo);
+            else
+                KeepSingleMountedWeapon(mountGo);
             ForceDownRail(mountGo);
             PrefabFactory.StampVisual(mountGo, NobpContent.VisualPrefab);
             mount.prefab = mountGo;
@@ -333,16 +410,43 @@ namespace Hydra.Bootstrap
 
             // Initialize may rewrite info from children — force ours back
             mount.info = info;
-            mount.mountName = TorpedoConstants.MountDisplayName;
-            mount.jsonKey = TorpedoConstants.MountJsonKey;
+            mount.mountName = ammo >= 2
+                ? TorpedoConstants.MountDisplayName + " x2"
+                : TorpedoConstants.MountDisplayName;
+            mount.jsonKey = mountJsonKey;
+            mount.ammo = ammo;
+            mount.mass = mount.emptyMass + TorpedoConstants.LaunchMassKg * ammo;
             mount.GearSafety = true;
             mount.GroundSafety = true;
             info.weaponPrefab = missileDef.unitPrefab;
             info.blastDamage = TorpedoConstants.BlastYieldKg;
 
+            if (string.Equals(mountJsonKey, TorpedoConstants.MountJsonKey, StringComparison.Ordinal))
+                TorpedoMount = mount;
+            else if (string.Equals(mountJsonKey, TorpedoConstants.MountJsonKeyDouble, StringComparison.Ordinal))
+                TorpedoMountDouble = mount;
+
             TorpedoInfo = info;
-            HydraPlugin.ModLog?.LogInfo($"Created WeaponMount from shell '{shellKey}' (read-only).");
+            HydraPlugin.ModLog?.LogInfo($"Created WeaponMount '{mountJsonKey}' x{ammo} from shell '{shellKey}'.");
             return mount;
+        }
+
+        private static void EnsureDualMountedWeapons(GameObject mountGo)
+        {
+            MountedMissile[] mounted = mountGo.GetComponentsInChildren<MountedMissile>(true);
+            if (mounted.Length >= 2)
+                return;
+            if (mounted.Length == 0)
+                return;
+
+            MountedMissile first = mounted[0];
+            if (first == null)
+                return;
+
+            GameObject clone = UnityEngine.Object.Instantiate(first.gameObject, first.transform.parent);
+            clone.name = first.name + "_2";
+            clone.transform.localPosition = first.transform.localPosition;
+            clone.transform.localRotation = first.transform.localRotation;
         }
 
         private static void KeepSingleMountedWeapon(GameObject mountGo)
@@ -376,6 +480,39 @@ namespace Hydra.Bootstrap
                 if (railDelay != null && railDelay.GetValue(mm) is float d && d > 2f)
                     railDelay.SetValue(mm, 0.15f);
             }
+        }
+
+        private static WeaponMount? ResolveDoubleShellMount(Encyclopedia enc)
+        {
+            string[] keys =
+            {
+                "BallisticMissile1_internalx2",
+                "BallisticMissile1_HE_internalx2"
+            };
+            foreach (string key in keys)
+            {
+                WeaponMount? m = PrefabFactory.FindMountByExactKey(enc, key);
+                if (m?.prefab != null && m.info != null &&
+                    m.jsonKey.IndexOf(TorpedoConstants.PiledriverNukeToken, StringComparison.OrdinalIgnoreCase) < 0)
+                    return m;
+            }
+
+            if (enc.weaponMounts == null)
+                return null;
+            foreach (WeaponMount cand in enc.weaponMounts)
+            {
+                if (cand?.prefab == null || cand.info == null || string.IsNullOrEmpty(cand.jsonKey))
+                    continue;
+                if (!cand.jsonKey.StartsWith("BallisticMissile1", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (cand.jsonKey.IndexOf(TorpedoConstants.PiledriverNukeToken, StringComparison.OrdinalIgnoreCase) >= 0)
+                    continue;
+                if (cand.jsonKey.IndexOf("internalx2", StringComparison.OrdinalIgnoreCase) < 0 &&
+                    cand.jsonKey.IndexOf("double", StringComparison.OrdinalIgnoreCase) < 0)
+                    continue;
+                return cand;
+            }
+            return null;
         }
 
         private static WeaponMount? ResolveShellMount(Encyclopedia enc)

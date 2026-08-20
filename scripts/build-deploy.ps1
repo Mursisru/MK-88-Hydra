@@ -38,5 +38,10 @@ if (Test-Path -LiteralPath $kozuch) {
   Copy-Item -LiteralPath $kozuch -Destination $deploy -Force
 }
 
+$preview = ".\MK88Hydra\Resources\PreviewHydra.png"
+if (Test-Path -LiteralPath $preview) {
+  Copy-Item -LiteralPath $preview -Destination $deploy -Force
+}
+
 Write-Host "Deployed to $deploy"
 Get-ChildItem -LiteralPath $deploy | Format-Table Name, Length

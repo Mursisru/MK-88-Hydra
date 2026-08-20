@@ -210,6 +210,8 @@ namespace Hydra.Runtime
                     TorpedoGlidePhysics.KillAirCollisions(_missile);
                     _missile.SetTangible(true);
                     Mk54ShellPrep.ArmForStrike(_missile);
+                    CapSwimEntrySpeed(_missile);
+                    Mk54Stealth.OnSubmerged(_missile);
                     Unit? ship = ResolveLockedShip(allowNearestFallback: false);
                     if (ship != null)
                         _missile.SetTarget(ship);
@@ -422,13 +424,24 @@ namespace Hydra.Runtime
             }
 
             // Dead lock: stay on lastKnown — never nearest-ship retarget.
+            Vector3 pos = _missile.transform.position;
+            _guidance?.TryDecoySeduction(pos);
+
             Unit? ship = ResolveLockedShip(allowNearestFallback: false);
             bool terminal = false;
             Vector3 aim = _guidance != null
-                ? _guidance.SwimAim(_missile.transform.position, ship, out terminal)
-                : _missile.transform.position + _missile.transform.forward * 200f;
+                ? _guidance.SwimAim(pos, ship, out terminal)
+                : pos + _missile.transform.forward * 200f;
 
-            TorpedoSwimPhysics.Apply(_missile, aim, dt, terminal);
+            TorpedoSwimPhysics.Apply(_missile, aim, dt, terminal, _phaseTime);
+
+            if (_guidance != null && _guidance.DecoySeduced)
+            {
+                float toDecoy = Vector3.Distance(pos, aim);
+                if (toDecoy <= TorpedoConstants.DetonateProximityM)
+                    Boom(_missile.transform.forward, "decoy-trap");
+                return;
+            }
 
             if (ship != null)
             {
@@ -444,6 +457,19 @@ namespace Hydra.Runtime
             float toLast = Vector3.Distance(_missile.transform.position, aim);
             if (toLast <= TorpedoConstants.DetonateProximityM)
                 Boom(_missile.transform.forward, "ship-dead-lastpos");
+        }
+
+        private static void CapSwimEntrySpeed(Missile missile)
+        {
+            if (missile?.rb == null)
+                return;
+
+            Vector3 v = missile.rb.velocity;
+            Vector3 horiz = new Vector3(v.x, 0f, v.z);
+            float cap = TorpedoConstants.SwimEntryHorizCapMps;
+            if (horiz.sqrMagnitude > cap * cap)
+                horiz = horiz.normalized * cap;
+            missile.rb.velocity = new Vector3(horiz.x, v.y, horiz.z);
         }
 
         private void PrepareWaterEntry()

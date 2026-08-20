@@ -7,12 +7,34 @@ namespace Hydra
     {
         public const string MissileJsonKey = "missilepack_mk54_torpedo";
         public const string MountJsonKey = "MissilePack_MK54_Torpedo_single";
+        public const string MountJsonKeyDouble = "MissilePack_MK54_Torpedo_double";
         public const string WeaponInfoName = "MK-88 Hydra";
         public const string MountDisplayName = "MK-88 Hydra";
         public const string UnitName = "MK-88 Hydra";
         public const string ShortName = "MK-88";
         public const string ShortNameLegacy = "MK54";
         public const string BogeyName = "Hydra";
+
+        public const string PreviewIconFileName = "PreviewHydra.png";
+        public const string PreviewIconResource = "Hydra.Resources.PreviewHydra.png";
+        public const int PreviewIconInkMin = 12;
+        public const int PreviewIconAlphaBase = 255;
+        public const int PreviewIconStrokeRadius = 3;
+
+        // Hydroacoustic decoy traps (per-ship counts, 7% redirect each).
+        public const float DecoyTrapRedirectChance = 0.07f;
+        public const float DecoyFieldRadiusM = 450f;
+        public const float DecoyBubbleDepthM = 3f;
+        public const float DecoyBubbleLifetimeS = 1.2f;
+        public const float DecoyBubbleSpeedMps = 0.35f;
+        public const float DecoyBubbleSizeM = 0.18f;
+        public const float DecoyBubbleIntervalS = 0.45f;
+        public const int DecoyCountAnnex = 130;
+        public const int DecoyCountHyperion = 130;
+        public const int DecoyCountDynamo = 70;
+        public const int DecoyCountArgus = 70;
+        public const int DecoyCountShard = 30;
+        public const int DecoyCountCursor = 50;
 
         // Full hung model envelope (was 3.9×1.45 visual vs 3.9 encyclopedia).
         public const float LengthM = 5.65f;
@@ -32,10 +54,7 @@ namespace Hydra
         // bomb_glide1-scale mass for ApplyAero only (ForceMode.Force); identity stays LaunchMassKg
         public const float ShellAeroMassKg = 125f;
         public const float BlastYieldKg = 450f;
-        // UW damage is a single moderated punch (not BlastFrag sphere).
-        public const float UnderwaterPunchBlast = 3600f;
-        public const float UnderwaterPunchAffected = 0.45f;
-        public const float UnderwaterPunchRadiusM = 45f;
+        // UW: stamp TBM Shockwave FX on warhead (vanilla damage path).
         public const string SeekerTypeName = "Sonar";
         // UnitConverter.ValueReading expects millions of $ → displays $3.9m
         public const float Cost = 3.9f;
@@ -168,15 +187,17 @@ namespace Hydra
         public const float SwimSpeedMps = SwimSpeedKmh / 3.6f;
         public const float SwimPropThrustN =
             0.5f * WaterDensity * SwimSpeedMps * SwimSpeedMps * SwimCdArea;
-        public const float SwimPropStaticMult = 1.2f;  // more thrust when nearly stopped
-        public const float SwimPropCruiseMult = 1f;    // at design surge
-        public const float SwimPropThrustGain = 6f;    // legacy unused
-        public const float SwimPropThrustMax = 120f;   // legacy unused
-        public const float SwimOverSpeedBrake = 0f;    // unused — drag only
+        public const float SwimPropStaticMult = 1f;
+        public const float SwimPropCruiseMult = 1f;
+        public const float SwimPropThrustGain = 6f;
+        public const float SwimPropThrustMax = 120f;
+        public const float SwimOverSpeedBrake = 0f;
         public const float SwimFinAuthority = 0.0002f;
         public const float TerminalFinMult = 1.15f;
         public const float SwimMaxAngVelRad = 1.8f;
-        public const float SwimLinearDrag = 0f;
+        public const float SwimLinearDrag = 850f;
+        public const float SwimThrustRampS = 28f;
+        public const float SwimEntryHorizCapMps = 42f;
         public const float SwimAngularDrag = 2.5f;
         public const float SwimThrustGain = 6f;
         public const float SwimBuoyancyGain = 2.8f;

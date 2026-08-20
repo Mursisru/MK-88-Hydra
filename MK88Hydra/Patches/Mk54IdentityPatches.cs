@@ -142,24 +142,32 @@ namespace Hydra.Patches
     {
         private static void Postfix(WeaponMount __instance)
         {
-            if (__instance == null ||
-                !string.Equals(__instance.jsonKey, TorpedoConstants.MountJsonKey, System.StringComparison.Ordinal))
+            if (__instance == null)
+                return;
+            if (!string.Equals(__instance.jsonKey, TorpedoConstants.MountJsonKey, System.StringComparison.Ordinal) &&
+                !string.Equals(__instance.jsonKey, TorpedoConstants.MountJsonKeyDouble, System.StringComparison.Ordinal))
                 return;
 
             WeaponInfo? info = __instance.info;
             if (info == null)
                 return;
 
+            int ammo = __instance.ammo > 0 ? __instance.ammo : 1;
             info.weaponName = TorpedoConstants.WeaponInfoName;
             info.shortName = TorpedoConstants.ShortName;
+            Sprite? preview = Hydra.Runtime.HydraWeaponIcon.Get();
+            if (preview != null)
+                info.weaponIcon = preview;
             info.massPerRound = TorpedoConstants.LaunchMassKg;
             info.blastDamage = TorpedoConstants.BlastYieldKg;
             info.costPerRound = TorpedoConstants.Cost;
             if (TorpedoBootstrap.TorpedoDefinition?.unitPrefab != null)
                 info.weaponPrefab = TorpedoBootstrap.TorpedoDefinition.unitPrefab;
 
-            __instance.mountName = TorpedoConstants.MountDisplayName;
-            __instance.mass = __instance.emptyMass + TorpedoConstants.LaunchMassKg;
+            __instance.mountName = ammo >= 2
+                ? TorpedoConstants.MountDisplayName + " x2"
+                : TorpedoConstants.MountDisplayName;
+            __instance.mass = __instance.emptyMass + TorpedoConstants.LaunchMassKg * ammo;
             __instance.RCS = TorpedoConstants.RadarSize;
             __instance.emptyCost = 0f;
 

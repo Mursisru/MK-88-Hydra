@@ -3,9 +3,7 @@ using UnityEngine;
 namespace Hydra.Runtime
 {
     /// <summary>
-    /// Hull-sized impact fuse. Sea ignored for mid-air hits.
-    /// Underwater: bomb_glide1 underwaterEffect has no Shockwave в†’ Warhead deals 0 damage.
-    /// We always apply DamageEffects.BlastFrag for underwater detonations.
+    /// Hull-sized impact fuse. Underwater damage = vanilla Warhead Shockwave (Mk54WarheadFx).
     /// </summary>
     internal static class TorpedoImpact
     {
@@ -95,27 +93,18 @@ namespace Hydra.Runtime
 
             Mk54ShellPrep.ArmForStrike(missile);
             Mk54ShellPrep.EnsureBlastYield(missile);
+            Mk54WarheadFx.Ensure(missile);
 
             Mk54DetonateGate.Allow = true;
             try
             {
-                // hitArmor for ship contacts so armor VFX path is considered above water.
                 missile.Detonate(normal, shipHit && !under, false);
             }
             finally
             {
                 Mk54DetonateGate.Allow = false;
             }
-
-            // bomb_glide1 underwaterEffect has no Shockwave — Warhead.Detonate deals VFX only.
-            // Do NOT BlastFrag OverlapSphere (wipes every carrier compartment). One moderated punch.
-            if (under)
-                Mk54UnderwaterBlast.Apply(missile, pos);
         }
-
-        /// <summary>Legacy entry — routed to single-ship punch.</summary>
-        internal static void ApplyUnderwaterBlast(Missile missile, Vector3 position) =>
-            Mk54UnderwaterBlast.Apply(missile, position);
 
         private static bool IsIgnoredHit(Missile missile, RaycastHit hit)
         {

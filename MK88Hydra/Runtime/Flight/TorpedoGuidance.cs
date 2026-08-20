@@ -12,6 +12,9 @@ namespace Hydra.Runtime
         private Vector3 _shipPos;
         private Vector3 _lastKnownShipPos;
         private bool _lockDied;
+        private bool _decoySeduced;
+        private bool _decoyRolled;
+        private Vector3 _decoyPos;
         private Vector3 _launchHeading = Vector3.forward;
         private Vector3 _launchPos;
         private float _swimFuelUsedM;
@@ -114,6 +117,24 @@ namespace Hydra.Runtime
 
         internal bool LockDied => _lockDied;
 
+        internal bool DecoySeduced => _decoySeduced;
+
+        internal void TryDecoySeduction(Vector3 torpedoPos)
+        {
+            if (_decoySeduced || _decoyRolled)
+                return;
+            if (!HydraAcousticDecoyField.IsInAnyField(torpedoPos))
+                return;
+
+            _decoyRolled = true;
+            if (!HydraAcousticDecoyField.TrySeduce(torpedoPos, out Vector3 trapPos))
+                return;
+
+            _decoySeduced = true;
+            _decoyPos = trapPos;
+            HydraPlugin.ModLog?.LogInfo($"TorpedoGuidance decoy seduction @ {trapPos}");
+        }
+
         internal Vector3 LaunchHeading => _launchHeading;
 
         internal Vector3 LaunchPos => _launchPos;
@@ -132,6 +153,15 @@ namespace Hydra.Runtime
         {
             terminal = false;
             float swimY = Datum.LocalSeaY - TorpedoConstants.SwimDepthM;
+
+            if (_decoySeduced)
+            {
+                Vector3 aimDecoy = _decoyPos;
+                aimDecoy.y = swimY;
+                float distDecoy = Vector3.Distance(from, aimDecoy);
+                terminal = distDecoy <= TorpedoConstants.TerminalRangeM;
+                return aimDecoy;
+            }
 
             // Dead / missing lock: drive to last known position (salvo mates boom there).
             if (ship == null || ship.disabled)
