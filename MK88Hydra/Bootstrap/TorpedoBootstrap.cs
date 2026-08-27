@@ -671,8 +671,6 @@ namespace Hydra.Bootstrap
                 return false;
             if (missile.GetComponent<Mk54Tag>() != null)
                 return true;
-            if (Mk54SpawnGate.InFlight)
-                return true;
             WeaponInfo? wi = missile.GetWeaponInfo();
             if (wi != null &&
                 (wi.weaponName == TorpedoConstants.WeaponInfoName ||

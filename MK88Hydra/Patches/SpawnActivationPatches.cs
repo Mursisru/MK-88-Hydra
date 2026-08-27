@@ -73,7 +73,8 @@ namespace Hydra.Patches
             if (Mk54SpawnGate.IsOurFlyPrefab(missile) &&
                 (Mk54SpawnGate.Pending > 0 || Mk54SpawnGate.HasRecentFire()))
                 Mk54SpawnGate.BeginPrefabStamp(missile);
-            __state = Mk54SpawnGate.TryBegin();
+            // Only consume pending on OUR shared shell — never steal Crosswim/AShM/etc. spawns.
+            __state = Mk54SpawnGate.IsOurFlyPrefab(missile) && Mk54SpawnGate.TryBegin();
         }
 
         private static void Postfix(bool __state, GameObject missile, Unit target, Missile __result)

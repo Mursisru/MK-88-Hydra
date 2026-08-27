@@ -1,6 +1,6 @@
 # MK-88 Hydra
 
-[![Version](https://img.shields.io/badge/version-1.0.1-blue)](https://github.com/Mursisru/MK-88-Hydra/releases)
+[![Version](https://img.shields.io/badge/version-1.0.2-blue)](https://github.com/Mursisru/MK-88-Hydra/releases)
 [![BepInEx](https://img.shields.io/badge/BepInEx-5-green)](https://docs.bepinex.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 

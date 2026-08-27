@@ -144,6 +144,9 @@ namespace Hydra.Runtime
         {
             if (missile == null)
                 return;
+            // Another mod already owns this round (e.g. MK-65 Crosswim on AShM shell).
+            if (HasForeignOwnerTag(missile))
+                return;
 
             ApplyDisplayIdentity(missile);
             if (TorpedoBootstrap.TorpedoInfo != null)
@@ -189,6 +192,24 @@ namespace Hydra.Runtime
                 return;
             Claim(missile);
             FinishVisual(missile);
+        }
+
+        /// <summary>Do not hijack rounds tagged by sibling mods (Crosswim etc.).</summary>
+        private static bool HasForeignOwnerTag(Missile missile)
+        {
+            if (missile == null)
+                return false;
+            MonoBehaviour[] comps = missile.GetComponents<MonoBehaviour>();
+            for (int i = 0; i < comps.Length; i++)
+            {
+                MonoBehaviour? c = comps[i];
+                if (c == null)
+                    continue;
+                string n = c.GetType().Name;
+                if (n.IndexOf("CrosswimTag", System.StringComparison.Ordinal) >= 0)
+                    return true;
+            }
+            return false;
         }
     }
 }

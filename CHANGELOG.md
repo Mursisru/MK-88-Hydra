@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.2] - 2026-08-27
+
+### Fixed
+
+- Hydra no longer intermittently becomes MK-65 Crosswim when both mods are installed: spawn Claim only on the Hydra `bomb_glide1` shell (sibling Pending tokens ignored); refuse Claim if a foreign owner tag is present
+
 ## [1.0.1] - 2026-08-27
 
 ### Fixed
