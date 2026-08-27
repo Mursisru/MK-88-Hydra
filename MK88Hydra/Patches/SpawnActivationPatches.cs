@@ -68,17 +68,29 @@ namespace Hydra.Patches
     [HarmonyPatch(typeof(Spawner), nameof(Spawner.SpawnMissile), new[] { typeof(GameObject), typeof(Vector3), typeof(Quaternion), typeof(Vector3), typeof(Unit), typeof(Unit) })]
     internal static class SpawnerSpawnMissileGoPatch
     {
-        private static void Prefix(out bool __state)
+        private static void Prefix(GameObject missile, out bool __state)
         {
+            if (Mk54SpawnGate.IsOurFlyPrefab(missile) &&
+                (Mk54SpawnGate.Pending > 0 || Mk54SpawnGate.HasRecentFire()))
+                Mk54SpawnGate.BeginPrefabStamp(missile);
             __state = Mk54SpawnGate.TryBegin();
         }
 
-        private static void Postfix(bool __state, Unit target, Missile __result)
+        private static void Postfix(bool __state, GameObject missile, Unit target, Missile __result)
         {
             try
             {
-                if (!__state || __result == null)
+                Mk54SpawnGate.EndPrefabStamp();
+                if (__result == null)
                     return;
+
+                bool rescue = !__state && Mk54SpawnGate.ShouldRescueClaim(missile);
+                if (!__state && !rescue)
+                    return;
+
+                if (rescue)
+                    HydraPlugin.ModLog?.LogWarning(
+                        $"MK54 rescue Claim on '{__result.name}' (bomb_glide1 shell, pending race)");
 
                 // Capture Fire target BEFORE Claim clears SyncVar for HUD/seeker.
                 Mk54SpawnGate.Claim(__result, target);
@@ -87,10 +99,11 @@ namespace Hydra.Patches
                 Rigidbody? rb = __result.rb != null ? __result.rb : __result.GetComponent<Rigidbody>();
                 Mk54FireLock? fireLock = __result.GetComponent<Mk54FireLock>();
                 HydraPlugin.ModLog?.LogInfo(
-                    $"SpawnMissile OK '{__result.name}' fire={(fireLock != null ? fireLock.DebugName : "none")} pos={__result.transform.position} rb={(rb != null ? $"kin={rb.isKinematic} g={rb.useGravity} v={rb.velocity}" : "NULL")}");
+                    $"SpawnMissile OK '{__result.name}' rescue={rescue} fire={(fireLock != null ? fireLock.DebugName : "none")} pos={__result.transform.position} rb={(rb != null ? $"kin={rb.isKinematic} g={rb.useGravity} v={rb.velocity}" : "NULL")}");
             }
             finally
             {
+                Mk54SpawnGate.EndPrefabStamp();
                 if (__state)
                     Mk54SpawnGate.End();
             }
@@ -102,16 +115,23 @@ namespace Hydra.Patches
     {
         private static void Prefix(MissileDefinition missile, out bool __state)
         {
-            __state = missile != null &&
-                      string.Equals(missile.jsonKey, TorpedoConstants.MissileJsonKey, System.StringComparison.Ordinal);
-            if (__state)
-                Mk54SpawnGate.InFlight = true;
+            if (missile == null)
+            {
+                __state = false;
+                return;
+            }
+            __state = string.Equals(missile.jsonKey, TorpedoConstants.MissileJsonKey, System.StringComparison.Ordinal);
+            if (!__state)
+                return;
+            Mk54SpawnGate.InFlight = true;
+            Mk54SpawnGate.BeginPrefabStamp(missile.unitPrefab);
         }
 
         private static void Postfix(bool __state, Unit target, Missile __result)
         {
             try
             {
+                Mk54SpawnGate.EndPrefabStamp();
                 if (!__state || __result == null)
                     return;
                 Mk54SpawnGate.Claim(__result, target);
@@ -119,6 +139,7 @@ namespace Hydra.Patches
             }
             finally
             {
+                Mk54SpawnGate.EndPrefabStamp();
                 if (__state)
                     Mk54SpawnGate.End();
             }
@@ -128,28 +149,45 @@ namespace Hydra.Patches
     [HarmonyPatch(typeof(Spawner), nameof(Spawner.SpawnMissileEncyclopedia))]
     internal static class SpawnerSpawnMissileEncyclopediaPatch
     {
-        private static void Postfix(MissileDefinition missile, Missile __result)
+        private static void Prefix(MissileDefinition missile, out bool __state)
         {
-            if (missile == null || __result == null)
-                return;
-            if (!string.Equals(missile.jsonKey, TorpedoConstants.MissileJsonKey, System.StringComparison.Ordinal))
-                return;
-
-            NobpContent.TryLoad();
-            if (missile.unitPrefab != null)
-                VisualMaterials.PrimeShaderFrom(missile.unitPrefab);
-
-            Mk54SpawnGate.Claim(__result);
-            Mk54Mass.ApplyLaunch(__result);
-            __result.NetworkunitName = TorpedoConstants.UnitName;
-
-            if (NobpContent.VisualPrefab != null)
+            if (missile == null)
             {
-                PrefabFactory.StampVisualLive(__result.gameObject, NobpContent.VisualPrefab);
-                PrefabFactory.HideStockRenderers(__result.gameObject);
+                __state = false;
+                return;
             }
-            else
-                HydraPlugin.ModLog?.LogWarning("Encyclopedia MK54: VisualPrefab null");
+            __state = string.Equals(missile.jsonKey, TorpedoConstants.MissileJsonKey, System.StringComparison.Ordinal);
+            if (__state)
+                Mk54SpawnGate.BeginPrefabStamp(missile.unitPrefab);
+        }
+
+        private static void Postfix(bool __state, MissileDefinition missile, Missile __result)
+        {
+            try
+            {
+                Mk54SpawnGate.EndPrefabStamp();
+                if (!__state || missile == null || __result == null)
+                    return;
+
+                NobpContent.TryLoad();
+                if (missile.unitPrefab != null)
+                    VisualMaterials.PrimeShaderFrom(missile.unitPrefab);
+
+                Mk54SpawnGate.Claim(__result);
+                Mk54Mass.ApplyLaunch(__result);
+
+                if (NobpContent.VisualPrefab != null)
+                {
+                    PrefabFactory.StampVisualLive(__result.gameObject, NobpContent.VisualPrefab);
+                    PrefabFactory.HideStockRenderers(__result.gameObject);
+                }
+                else
+                    HydraPlugin.ModLog?.LogWarning("Encyclopedia MK54: VisualPrefab null");
+            }
+            finally
+            {
+                Mk54SpawnGate.EndPrefabStamp();
+            }
         }
     }
 

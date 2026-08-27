@@ -31,8 +31,33 @@ namespace Hydra.Runtime
             Pending++;
             _pendingUntilRealtime = Time.realtimeSinceStartup + PendingTtlS;
             _fireOwnerId = mount != null ? mount.GetInstanceID() : 0;
+            SyncSharedInfo(mount);
             HydraPlugin.ModLog?.LogInfo(
                 $"MK54 NoteFire pending={Pending} ttl={PendingTtlS:F0}s ownerId={_fireOwnerId}");
+        }
+
+        /// <summary>Recent Hydra Fire even if Pending token was stolen by unrelated SpawnMissile.</summary>
+        internal static bool HasRecentFire() =>
+            _pendingUntilRealtime > 0f && Time.realtimeSinceStartup <= _pendingUntilRealtime;
+
+        /// <summary>Shared bomb_glide1 shell spawn that missed TryBegin — reclaim as Hydra.</summary>
+        internal static bool ShouldRescueClaim(GameObject? prefab)
+        {
+            if (!HasRecentFire())
+                return false;
+            return IsOurFlyPrefab(prefab);
+        }
+
+        internal static void SyncSharedInfo(MountedMissile? mount)
+        {
+            WeaponInfo? shared = TorpedoBootstrap.TorpedoInfo;
+            GameObject? fly = TorpedoBootstrap.TorpedoDefinition?.unitPrefab;
+            if (shared == null)
+                return;
+            if (fly != null)
+                shared.weaponPrefab = fly;
+            if (mount != null)
+                mount.info = shared;
         }
 
         internal static bool TryBegin()
@@ -63,20 +88,70 @@ namespace Hydra.Runtime
             _fireOwnerId = 0;
         }
 
+        // unitName SyncVar is initial-only — stamp definition on shared bomb shell BEFORE Instantiate.
+        private static Missile? _stampMissile;
+        private static UnitDefinition? _stampSavedDef;
+
+        internal static bool BeginPrefabStamp(GameObject? prefab)
+        {
+            EndPrefabStamp();
+            MissileDefinition? ours = TorpedoBootstrap.TorpedoDefinition;
+            if (prefab == null || ours == null)
+                return false;
+            Missile? m = prefab.GetComponent<Missile>() ?? prefab.GetComponentInChildren<Missile>(true);
+            if (m == null)
+                return false;
+            _stampMissile = m;
+            _stampSavedDef = m.definition;
+            m.definition = ours;
+            return true;
+        }
+
+        internal static void EndPrefabStamp()
+        {
+            if (_stampMissile != null && _stampSavedDef != null)
+                _stampMissile.definition = _stampSavedDef;
+            _stampMissile = null;
+            _stampSavedDef = null;
+        }
+
+        internal static bool IsOurFlyPrefab(GameObject? go)
+        {
+            if (go == null)
+                return false;
+            GameObject? fly = TorpedoBootstrap.TorpedoDefinition?.unitPrefab;
+            return fly != null && ReferenceEquals(go, fly);
+        }
+
+        /// <summary>Kill feed / PersistentUnit snapshot — keep Hydra identity, not bomb_glide1.</summary>
+        internal static void ApplyDisplayIdentity(Missile missile)
+        {
+            if (missile == null)
+                return;
+            MissileDefinition? def = TorpedoBootstrap.TorpedoDefinition;
+            if (def != null)
+                missile.definition = def;
+            missile.NetworkunitName = TorpedoConstants.UnitName;
+            missile.unitName = TorpedoConstants.UnitName;
+            if (!UnitRegistry.TryGetPersistentUnit(missile.persistentID, out PersistentUnit pu) || pu == null)
+                return;
+            pu.unitName = TorpedoConstants.UnitName;
+            if (def != null)
+                pu.definition = def;
+        }
+
         internal static void Claim(Missile missile, Unit? fireTarget = null)
         {
             if (missile == null)
                 return;
 
-            if (TorpedoBootstrap.TorpedoDefinition != null)
-                missile.definition = TorpedoBootstrap.TorpedoDefinition;
+            ApplyDisplayIdentity(missile);
             if (TorpedoBootstrap.TorpedoInfo != null)
                 InfoField?.SetValue(missile, TorpedoBootstrap.TorpedoInfo);
 
             if (missile.GetComponent<Mk54Tag>() == null)
                 missile.gameObject.AddComponent<Mk54Tag>();
 
-            missile.NetworkunitName = TorpedoConstants.UnitName;
             missile.SetThrottle(0f);
             // Snapshot fire target then clear SyncVar (HUD/seeker off). Never lose lock to nearest-ship.
             Mk54FireLock.Capture(missile, fireTarget);

@@ -682,5 +682,13 @@ namespace Hydra.Bootstrap
             return missile.definition != null &&
                    string.Equals(missile.definition.jsonKey, TorpedoConstants.MissileJsonKey, StringComparison.Ordinal);
         }
+
+        internal static bool IsOurMount(WeaponMount? mount)
+        {
+            if (mount == null)
+                return false;
+            return string.Equals(mount.jsonKey, TorpedoConstants.MountJsonKey, StringComparison.Ordinal) ||
+                   string.Equals(mount.jsonKey, TorpedoConstants.MountJsonKeyDouble, StringComparison.Ordinal);
+        }
     }
 }

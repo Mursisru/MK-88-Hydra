@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1] - 2026-08-27
+
+### Fixed
+
+- Internal weapon bay no longer adds Hydra RCS to the aircraft (shared mount still counts on external pylons) — closes [#1](https://github.com/Mursisru/MK-88-Hydra/issues/1)
+- Intermittent drop as PAB-80 / `bomb_glide1`: stamp Hydra definition before Instantiation, rescue Claim on pending race, PersistentUnit kill-feed identity — closes [#2](https://github.com/Mursisru/MK-88-Hydra/issues/2)
+
 ## [1.0.0] - 2026-08-20
 
 First public release of the standalone MK-88 Hydra mod for Nuclear Option.

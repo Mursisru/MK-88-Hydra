@@ -188,4 +188,16 @@ namespace Hydra.Patches
             }
         }
     }
+
+    /// <summary>PersistentUnit snapshots unitName at register — keep kill feed on Hydra identity.</summary>
+    [HarmonyPatch(typeof(UnitRegistry), nameof(UnitRegistry.RegisterUnit))]
+    internal static class Mk54PersistentIdentityPatch
+    {
+        private static void Postfix(Unit unit)
+        {
+            if (unit is not Missile missile || !TorpedoBootstrap.IsOurMissile(missile))
+                return;
+            Mk54SpawnGate.ApplyDisplayIdentity(missile);
+        }
+    }
 }
