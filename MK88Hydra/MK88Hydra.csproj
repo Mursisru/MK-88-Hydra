@@ -8,9 +8,9 @@
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <WarningLevel>5</WarningLevel>
-    <Version>1.0.2</Version>
-    <AssemblyVersion>1.0.2.0</AssemblyVersion>
-    <FileVersion>1.0.2.0</FileVersion>
+    <Version>1.0.3</Version>
+    <AssemblyVersion>1.0.3.0</AssemblyVersion>
+    <FileVersion>1.0.3.0</FileVersion>
     <OutputPath>bin\$(Configuration)\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
@@ -30,7 +30,7 @@
       <Private>false</Private>
     </Reference>
     <Reference Include="Blueprinter">
-      <HintPath>$(NuclearOptionRoot)\BepInEx\plugins\Blueprinter.dll</HintPath>
+      <HintPath>$(BlueprinterDll)</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Assembly-CSharp">

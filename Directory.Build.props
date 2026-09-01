@@ -1,6 +1,7 @@
 <Project>
   <PropertyGroup>
     <NuclearOptionRoot Condition="'$(NuclearOptionRoot)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Nuclear Option</NuclearOptionRoot>
+    <BlueprinterDll>$(NuclearOptionRoot)\BepInEx\plugins\com.nikkorap.blueprinter\Blueprinter_2.0.1.dll</BlueprinterDll>
     <ModDeployDir>$(NuclearOptionRoot)\BepInEx\plugins\MK-88-Hydra</ModDeployDir>
   </PropertyGroup>
 </Project>
